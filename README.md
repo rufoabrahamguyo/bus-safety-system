@@ -2,7 +2,7 @@
 
 A real-time AI-powered safety system for buses that eliminates blind spots and detects driver drowsiness. Built with computer vision, edge computing, and sensor fusion for hackathon demonstrations.
 
-##MVP Features
+#MVP Features
 
 - **360° Blind Spot Detection**: Real-time object detection (pedestrians, vehicles, cyclists) using YOLOv8
 - **Driver Drowsiness Detection**: Advanced head pose estimation + EAR (Eye Aspect Ratio) monitoring with baseline calibration
@@ -22,7 +22,7 @@ A real-time AI-powered safety system for buses that eliminates blind spots and d
 
 ## Hardware Setup
 
-- **4-6 webcams** (phone cameras via DroidCam/IP Webcam)
+- **4 webcams** (phone cameras via IP Webcam)
   - Front camera
   - Rear camera
   - Left mirror camera
