@@ -64,6 +64,10 @@ if 'system_running' not in st.session_state:
     st.session_state.system_running = False
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = time.time()
+if 'drowsiness_alert_time' not in st.session_state:
+    st.session_state.drowsiness_alert_time = 0
+if 'head_tilt_alert_time' not in st.session_state:
+    st.session_state.head_tilt_alert_time = 0
 
 def initialize_system():
     """Initialize the bus safety system."""
@@ -151,7 +155,7 @@ with col1:
 
 with col2:
     if st.session_state.system_running and st.session_state.system.latest_drowsiness:
-        drowsy_status = "⚠️ DROWSY" if st.session_state.system.latest_drowsiness['is_drowsy'] else "✅ AWAKE"
+        drowsy_status = " DROWSY" if st.session_state.system.latest_drowsiness['is_drowsy'] else " AWAKE"
         st.metric("Driver Status", drowsy_status)
     else:
         st.metric("Driver Status", "N/A")
@@ -179,17 +183,37 @@ with col4:
 
 # Alert section
 st.markdown("---")
-st.subheader("⚠️ Alerts & Warnings")
+st.subheader("Alerts & Warnings")
+
+# Load alert duration from config
+alert_duration = 5.0  # Default duration
+try:
+    if st.session_state.system and hasattr(st.session_state.system, 'config'):
+        alert_duration = st.session_state.system.config.get('dashboard', {}).get('alert_duration', 5.0)
+except Exception:
+    pass  # Use default if config loading fails
 
 if st.session_state.system_running and st.session_state.system.latest_drowsiness:
     drowsiness = st.session_state.system.latest_drowsiness
+    current_time = time.time()
     
+    # Update alert timestamps when alerts are triggered
     if drowsiness['is_drowsy']:
+        st.session_state.drowsiness_alert_time = current_time
+    if drowsiness.get('head_tilted', False):
+        st.session_state.head_tilt_alert_time = current_time
+    
+    # Check if alerts should still be visible (within duration window)
+    drowsiness_alert_active = (current_time - st.session_state.drowsiness_alert_time) < alert_duration
+    head_tilt_alert_active = (current_time - st.session_state.head_tilt_alert_time) < alert_duration
+    
+    # Show alerts based on current state or timer
+    if drowsiness['is_drowsy'] or drowsiness_alert_active:
         st.markdown(
-            '<div class="alert-box alert-danger">🚨 DRIVER DROWSY - EMERGENCY BRAKE ACTIVATED!</div>',
+            '<div class="alert-box alert-danger">DRIVER DROWSY - EMERGENCY BRAKE ACTIVATED!</div>',
             unsafe_allow_html=True
         )
-    elif drowsiness.get('head_tilted', False):
+    elif drowsiness.get('head_tilted', False) or head_tilt_alert_active:
         max_tilt = max(abs(drowsiness.get('head_pitch', 0)),
                       abs(drowsiness.get('head_yaw', 0)),
                       abs(drowsiness.get('head_roll', 0)))
@@ -199,7 +223,7 @@ if st.session_state.system_running and st.session_state.system.latest_drowsiness
         )
     elif drowsiness['face_detected']:
         st.markdown(
-            '<div class="alert-box alert-success">✅ Driver is awake and alert</div>',
+            '<div class="alert-box alert-success"> Driver is awake and alert</div>',
             unsafe_allow_html=True
         )
     else:
@@ -218,7 +242,7 @@ if st.session_state.system_running:
     col_left, col_right = st.columns(2)
     
     with col_left:
-        st.subheader("👤 Driver Monitoring")
+        st.subheader(" Driver Monitoring")
         
         if st.session_state.system.latest_drowsiness:
             driver_frame = st.session_state.system.latest_drowsiness.get('annotated_frame')

@@ -224,11 +224,11 @@ class BusSafetySystem:
                     print("⚠️ WARNING: Driver camera (index 4) not working! Drowsiness detection disabled.")
                     print("   Make sure camera index 4 is connected and has permission.")
             
-            # Create BEV map
+            # Create BEV map (always generate, even if no frames - shows grid and bus outline)
             detection_frames = {k: v for k, v in frames.items() if k != 'driver' and v is not None}
-            if detection_frames:
-                bev_map = self.bev_mapper.create_bev_map(detection_frames, self.latest_detections)
-                self.latest_bev_map = bev_map
+            # Always generate BEV map (will show grid, bus outline, and detections if available)
+            bev_map = self.bev_mapper.create_bev_map(detection_frames, self.latest_detections)
+            self.latest_bev_map = bev_map
             
             # Control frame rate (adaptive based on processing time)
             elapsed = time.time() - start_time

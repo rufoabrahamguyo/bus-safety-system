@@ -381,13 +381,16 @@ class DrowsinessDetector:
             max_tilt = head_pose["max_angle"]
             
             # Check if head is tilted
+            # More sensitive: check if ANY angle exceeds threshold
             if max_tilt > self.head_tilt_threshold:
                 self.head_tilt_counter += 1
                 if self.head_tilt_counter >= self.head_tilt_consecutive:
                     self.is_head_tilted = True
             else:
-                self.head_tilt_counter = 0
-                self.is_head_tilted = False
+                # Gradual reset instead of immediate reset for smoother detection
+                self.head_tilt_counter = max(0, self.head_tilt_counter - 1)
+                if self.head_tilt_counter == 0:
+                    self.is_head_tilted = False
             
             # Draw head pose info
             cv2.putText(landmarks_drawn, f"Pitch: {self.head_pitch:.1f}°", 
@@ -562,33 +565,43 @@ class DrowsinessDetector:
                     ear_left = eye_ratios[0]
                     ear_right = eye_ratios[1]
                     
-                    # Adjust threshold for OpenCV method (less accurate)
-                    adjusted_threshold = self.ear_threshold * 2.0
-                    
                     # Store in history
                     self.ear_history.append(ear_avg)
                     
-                    # Check if eyes are closed
-                    if ear_avg < adjusted_threshold:
+                    # IMPORTANT: When eyes are CLOSED, the height/width ratio INCREASES
+                    # Open eyes: ratio ~0.2-0.3, Closed eyes: ratio ~0.5-0.8
+                    # So we check if ratio is HIGHER than threshold (opposite of MediaPipe EAR)
+                    closed_eye_threshold = 0.5  # Eyes closed if ratio > 0.5
+                    
+                    # Check if eyes are closed (high ratio = closed)
+                    if ear_avg > closed_eye_threshold:
                         self.closed_eye_counter += 1
                     else:
-                        self.closed_eye_counter = 0
+                        # Also check if ratio is very low (might indicate eyes are squinting/closing)
+                        if ear_avg < self.ear_threshold:
+                            self.closed_eye_counter += 1
+                        else:
+                            self.closed_eye_counter = max(0, self.closed_eye_counter - 1)  # Gradual reset
                     
                     # Determine drowsiness status
                     self.is_drowsy = self.closed_eye_counter >= self.consecutive_frames
                 else:
-                    self.closed_eye_counter = 0
-                    self.is_drowsy = False
+                    # Only one eye detected or none - might be closing
+                    if len(self.ear_history) > 2:  # Face was detected before
+                        self.closed_eye_counter += 1
+                    else:
+                        self.closed_eye_counter = max(0, self.closed_eye_counter - 1)
+                    self.is_drowsy = self.closed_eye_counter >= self.consecutive_frames
             else:
-                # Eyes not detected - might be closed or looking away
-                # Only increment if we've detected face consistently
-                if len(self.ear_history) > 5:  # Face was detected before
+                # Eyes not detected - likely closed or looking away
+                # More aggressive detection: only need 2 frames of history
+                if len(self.ear_history) > 2:  # Face was detected before (reduced from 5)
                     self.closed_eye_counter += 1
                     if self.closed_eye_counter >= self.consecutive_frames:
                         self.is_drowsy = True
                 else:
                     # Face just detected, eyes might not be visible yet
-                    self.closed_eye_counter = 0
+                    self.closed_eye_counter = max(0, self.closed_eye_counter - 1)
                     self.is_drowsy = False
         else:
             # No face detected - reset counters
@@ -623,13 +636,16 @@ class DrowsinessDetector:
             max_tilt = head_pose["max_angle"]
             
             # Check if head is tilted beyond threshold
+            # More sensitive: check if ANY angle exceeds threshold
             if max_tilt > self.head_tilt_threshold:
                 self.head_tilt_counter += 1
                 if self.head_tilt_counter >= self.head_tilt_consecutive:
                     self.is_head_tilted = True
             else:
-                self.head_tilt_counter = 0
-                self.is_head_tilted = False
+                # Gradual reset instead of immediate reset for smoother detection
+                self.head_tilt_counter = max(0, self.head_tilt_counter - 1)
+                if self.head_tilt_counter == 0:
+                    self.is_head_tilted = False
             
             # Draw head pose info on frame
             cv2.putText(landmarks_drawn, f"Pitch: {self.head_pitch:.1f}°", 

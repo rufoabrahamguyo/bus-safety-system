@@ -17,11 +17,11 @@ detection:
 
 # Drowsiness Detection
 drowsiness:
-  ear_threshold: 0.2        # Eye Aspect Ratio threshold (lower = more sensitive)
-  consecutive_frames: 10    # Frames with closed eyes before alert (at 30fps = ~0.33s) - REDUCED for faster detection
+  ear_threshold: 0.15       # Eye Aspect Ratio threshold (lower = more sensitive) - REDUCED for better detection
+  consecutive_frames: 5     # Frames with closed eyes before alert (at 30fps = ~0.17s) - REDUCED for faster detection
   perclos_threshold: 0.3    # Percentage of time eyes closed (PERCLOS metric)
-  head_tilt_threshold: 20.0  # Head tilt angle in degrees before alert (pitch/yaw/roll) - improved accuracy
-  head_tilt_consecutive: 5  # Consecutive frames with head tilt before alert
+  head_tilt_threshold: 15.0  # Head tilt angle in degrees before alert (pitch/yaw/roll) - REDUCED for better sensitivity
+  head_tilt_consecutive: 3  # Consecutive frames with head tilt before alert - REDUCED for faster detection
 
 # Bird's Eye View Settings
 bev:
@@ -41,4 +41,5 @@ emergency:
 dashboard:
   port: 8501
   update_rate: 30  # FPS for dashboard updates
+  alert_duration: 5.0  # Seconds to keep red alert visible after condition clears
 

@@ -152,21 +152,55 @@ class BEVMapper:
         # Draw bus outline in center
         self._draw_bus_outline()
         
-        # Warp and blend camera views
+        # Check if we have valid homography matrices
+        has_valid_homography = False
         for camera_name in ["front", "rear", "left", "right"]:
-            if camera_name in frames and frames[camera_name] is not None:
-                warped = self.warp_to_bev(frames[camera_name], camera_name)
-                
-                # Blend warped view onto canvas (simple alpha blending)
-                mask = warped.sum(axis=2) > 0
-                self.bev_canvas[mask] = (self.bev_canvas[mask] * 0.3 + warped[mask] * 0.7).astype(np.uint8)
+            if camera_name in self.homography_matrices:
+                H = self.homography_matrices[camera_name]
+                if not np.allclose(H, np.eye(3)):
+                    has_valid_homography = True
+                    break
+        
+        # Warp and blend camera views (only if homography matrices are calibrated)
+        if has_valid_homography:
+            for camera_name in ["front", "rear", "left", "right"]:
+                if camera_name in frames and frames[camera_name] is not None:
+                    warped = self.warp_to_bev(frames[camera_name], camera_name)
+                    
+                    # Blend warped view onto canvas (simple alpha blending)
+                    mask = warped.sum(axis=2) > 0
+                    if mask.any():
+                        self.bev_canvas[mask] = (self.bev_canvas[mask] * 0.3 + warped[mask] * 0.7).astype(np.uint8)
+        else:
+            # Fallback: Draw simple camera view indicators without warping
+            self._draw_camera_view_indicators(frames)
         
         # Draw detections on BEV map
         if detections:
-            self._draw_detections_on_bev(detections)
+            if has_valid_homography:
+                # Use calibrated homography transformation
+                self._draw_detections_on_bev(detections)
+            else:
+                # Use fallback positioning (no calibration needed)
+                self._draw_detections_on_bev_fallback(detections)
         
         # Draw camera positions
         self._draw_camera_positions()
+        
+        # Add status text if in fallback mode
+        if not has_valid_homography:
+            status_text = "FALLBACK MODE - Calibrate homography for accurate mapping"
+            text_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+            text_x = (self.output_width - text_size[0]) // 2
+            cv2.putText(
+                self.bev_canvas,
+                status_text,
+                (text_x, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 0),
+                2
+            )
         
         return self.bev_canvas
     
@@ -270,4 +304,107 @@ class BEVMapper:
                 (255, 255, 0),
                 2
             )
+    
+    def _draw_camera_view_indicators(self, frames: Dict[str, np.ndarray]):
+        """Draw simple indicators showing which cameras are active (fallback when no calibration)."""
+        center_x = self.output_width // 2
+        center_y = self.output_height // 2
+        
+        # Draw view cones/arrows from camera positions
+        view_length = 150
+        for camera_name, pos in self.camera_positions.items():
+            if camera_name in frames and frames[camera_name] is not None:
+                # Draw arrow pointing from camera position
+                dx = pos[0] - center_x
+                dy = pos[1] - center_y
+                # Normalize direction
+                length = np.sqrt(dx*dx + dy*dy)
+                if length > 0:
+                    dx_norm = dx / length
+                    dy_norm = dy / length
+                    end_x = int(pos[0] - dx_norm * view_length)
+                    end_y = int(pos[1] - dy_norm * view_length)
+                    cv2.arrowedLine(self.bev_canvas, pos, (end_x, end_y), (100, 100, 255), 2)
+                    cv2.putText(
+                        self.bev_canvas,
+                        "ACTIVE",
+                        (pos[0] - 25, pos[1] + 35),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.4,
+                        (100, 255, 100),
+                        1
+                    )
+    
+    def _draw_detections_on_bev_fallback(self, detections: Dict[str, Dict]):
+        """
+        Draw detections on BEV map using fallback positioning (when no homography calibration).
+        Places detections in approximate zones based on camera position.
+        """
+        color_map = {
+            "person": (0, 0, 255),      # Red
+            "bicycle": (0, 255, 255),   # Yellow
+            "motorcycle": (0, 255, 255), # Yellow
+            "car": (255, 0, 0),         # Blue
+            "bus": (255, 0, 255),       # Magenta
+            "truck": (255, 0, 255),     # Magenta
+        }
+        
+        # Zone offsets from camera positions (approximate)
+        zone_offsets = {
+            "front": (0, -100),   # Above center (front)
+            "rear": (0, 100),     # Below center (rear)
+            "left": (-100, 0),    # Left of center
+            "right": (100, 0),    # Right of center
+        }
+        
+        center_x = self.output_width // 2
+        center_y = self.output_height // 2
+        
+        for camera_name, detection_result in detections.items():
+            if detection_result is None or len(detection_result.get("boxes", [])) == 0:
+                continue
+            
+            boxes = detection_result["boxes"]
+            class_names = detection_result["class_names"]
+            confidences = detection_result["confidences"]
+            track_ids = detection_result.get("track_ids", [])
+            
+            # Get base position for this camera's detection zone
+            if camera_name in zone_offsets:
+                base_x = center_x + zone_offsets[camera_name][0]
+                base_y = center_y + zone_offsets[camera_name][1]
+            else:
+                base_x = center_x
+                base_y = center_y
+            
+            # Draw detections in approximate zones
+            for i, (box, cls_name, conf) in enumerate(zip(boxes, class_names, confidences)):
+                # Spread detections around base position
+                offset_x = (i % 3 - 1) * 40  # -40, 0, 40
+                offset_y = (i // 3) * 40
+                
+                bev_point = (base_x + offset_x, base_y + offset_y)
+                
+                # Get color
+                color = color_map.get(cls_name, (0, 255, 0))
+                
+                # Draw circle at detection location
+                radius = 15
+                cv2.circle(self.bev_canvas, bev_point, radius, color, -1)
+                cv2.circle(self.bev_canvas, bev_point, radius, (255, 255, 255), 2)
+                
+                # Draw label
+                label = f"{cls_name[:3]}"
+                if i < len(track_ids):
+                    label += f"#{track_ids[i]}"
+                
+                cv2.putText(
+                    self.bev_canvas,
+                    label,
+                    (bev_point[0] + 20, bev_point[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    color,
+                    2
+                )
 
