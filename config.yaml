@@ -1,0 +1,44 @@
+# Bus Safety System Configuration
+
+# Camera Configuration
+cameras:
+  front: https://10.0.17.113:8080/video       # Phone camera for front view
+  rear: https://10.0.101.135:8080/video      # Phone camera for rear view
+  left: https://10.0.16.137:8080/video       # Phone camera for left mirror
+  right: 3      # USB camera index for right mirror (not connected)
+  driver: 0     # Laptop built-in camera ONLY for driver face monitoring
+
+# Detection Settings
+detection:
+  model: "yolov8n.pt"  # YOLOv8 model (n=nano, s=small, m=medium)
+  confidence_threshold: 0.5
+  classes_of_interest: [0, 1, 2, 3, 5, 7]  # person, bicycle, car, motorcycle, bus, truck
+  danger_zone_radius: 3.0  # meters - objects within this distance trigger alerts
+
+# Drowsiness Detection
+drowsiness:
+  ear_threshold: 0.2        # Eye Aspect Ratio threshold (lower = more sensitive)
+  consecutive_frames: 10    # Frames with closed eyes before alert (at 30fps = ~0.33s) - REDUCED for faster detection
+  perclos_threshold: 0.3    # Percentage of time eyes closed (PERCLOS metric)
+  head_tilt_threshold: 20.0  # Head tilt angle in degrees before alert (pitch/yaw/roll) - improved accuracy
+  head_tilt_consecutive: 5  # Consecutive frames with head tilt before alert
+
+# Bird's Eye View Settings
+bev:
+  output_width: 1000
+  output_height: 1000
+  homography_dir: "homography_matrices"  # Directory for saved homography matrices
+
+# Emergency Actions
+emergency:
+  enable_sound_alert: true
+  enable_visual_alert: true
+  enable_brake_mock: false  # Set to true if Arduino is connected
+  arduino_port: "/dev/ttyUSB0"  # Change based on your system
+  brake_baudrate: 9600
+
+# Dashboard
+dashboard:
+  port: 8501
+  update_rate: 30  # FPS for dashboard updates
+
