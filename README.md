@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Bus Safety System
 
 A real-time AI-powered safety system for buses that eliminates blind spots and detects driver drowsiness. Built with computer vision, edge computing, and sensor fusion for hackathon demonstrations.
@@ -29,3 +30,6 @@ A real-time AI-powered safety system for buses that eliminates blind spots and d
   - Right mirror camera
 
 
+=======
+# bus-safety-system
+>>>>>>> f0e5ff67ce73e4eb6903774c6817ca6b8739a3ee
